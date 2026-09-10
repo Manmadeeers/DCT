@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: dct-dev
+    environment:
+      POSTGRES_USER: dct_user
+      POSTGRES_PASSWORD: dct_password
+      POSTGRES_DB: warehouse_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/home/manmad/Desktop/7sem/DCT/volume
+
+volumes:
+  postgres_data:
