@@ -20,12 +20,12 @@ public interface IWarehouseService
     Task<Stock> UpdateStockAsync(int id, UpdateStockRequest request);
     Task<bool> DeleteStockAsync(int id);
 
-    // Shipment operations
-    Task<Shipment> CreateShipmentAsync(CreateShippmentRequest request);
-    Task<Shipment> ReceiveShipmentAsync(int shipmentId, ReceiveShipmentRequest request);
-    Task<Shipment> GetShipmentByIdAsync(int id);
-    Task<IEnumerable<Shipment>> GetAllShipmentsAsync();
-    Task<IEnumerable<Shipment>> GetShipmentsByWarehouseAsync(int warehouseId);
+    // Shippment operations
+    Task<Shippment> CreateShippmentAsync(CreateShippmentRequest request);
+    Task<Shippment> ReceiveShippmentAsync(int ShippmentId, ReceiveShippmentRequest request);
+    Task<Shippment> GetShippmentByIdAsync(int id);
+    Task<IEnumerable<Shippment>> GetAllShippmentsAsync();
+    Task<IEnumerable<Shippment>> GetShippmentsByWarehouseAsync(int warehouseId);
 
     // Reserve operations
     Task<bool> ReserveProductAsync(ReserveProductRequest request);

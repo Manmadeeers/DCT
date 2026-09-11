@@ -1,2 +1,2 @@
 # Distributed-Systems
-Distributed Computer Systems submodule repository
+Distributed and Cloud Systems submodule repository
