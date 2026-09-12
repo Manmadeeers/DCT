@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:latest
-    container_name: dct-dev
+    container_name: dct
     environment:
       POSTGRES_USER: dct_user
       POSTGRES_PASSWORD: dct_password
