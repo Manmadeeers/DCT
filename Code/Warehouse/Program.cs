@@ -3,9 +3,12 @@ using Microsoft.Extensions.Options;
 using Warehouse.Data;
 
 var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+var app = builder.Build();
+
+
 app.MapGet("/", () => "Hello World!");
 
 app.Run();

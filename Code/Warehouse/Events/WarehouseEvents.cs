@@ -1,4 +1,4 @@
-using Warehouse.Models;
+using Warehouse.Models.Entities;
 
 namespace Warehouse.Events
 {
@@ -12,7 +12,7 @@ namespace Warehouse.Events
         public int ShipmentId { get; set; }
         public int WarehouseId { get; set; }
 
-        public List<ShipmentItem> Items { get; set; }
+        public List<ShippingItem> Items { get; set; } = new List<ShippingItem>();
         public DateTime OccuredAt { get; set; }
     }
 
@@ -29,7 +29,7 @@ namespace Warehouse.Events
         public int ProductId { get; set; }
         public int WarehouseId { get; set; }
         public int Quantity { get; set; }
-        public string ShipmentDestination { get; set; }
+        public string? ShipmentDestination { get; set; }
         public DateTime OccuredAt { get; set; }
     }
 
@@ -40,7 +40,7 @@ namespace Warehouse.Events
         public int ProductId { get; set; }
         public int PreviousQuantity { get; set; }
         public int NewQuantity { get; set; }
-        public string OperationType { get; set; }
+        public string? OperationType { get; set; }
         public DateTime OccuredAt { get; set; }
     }
 }

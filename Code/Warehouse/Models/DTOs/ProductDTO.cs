@@ -6,10 +6,8 @@ namespace Warehouse.Models.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal Price { get; set; }
-        public DateTime Created_at { get; set; }
-        public DateTime? Updated_at { get; set; }
+        public int Quantity { get; set; }
         public int? Stock_id { get; set; }
-        public string? StockName { get; set; }
     }
 
     public class CreateProductRequest
@@ -17,6 +15,7 @@ namespace Warehouse.Models.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal Price { get; set; }
+        public int Quantity { get; set; }
         public int? Stock_id { get; set; }
     }
 
