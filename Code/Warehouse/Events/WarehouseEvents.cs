@@ -1,46 +1,34 @@
-using Warehouse.Models.Entities;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Warehouse.Events
 {
-    public interface IWarehouseEvent
-    {
-        DateTime OccuredAt { get; }
-    }
+    public interface IWarehouseEvent;
 
-    public class ShipmentReceivedEvent : IWarehouseEvent
-    {
-        public int ShipmentId { get; set; }
-        public int WarehouseId { get; set; }
+    public sealed record ShipmentReceived(
+        int ShipmentId,
+        int WarehouseId,
+        int StockId
+    ):IWarehouseEvent;
 
-        public List<ShippingItem> Items { get; set; } = new List<ShippingItem>();
-        public DateTime OccuredAt { get; set; }
-    }
+    public sealed record ProductReserved(
+        int WarehouseId,
+        int StockId,
+        int ProductId,
+        int Quantity
+    ):IWarehouseEvent;
 
-    public class ProductReservedEvent : IWarehouseEvent
-    {
-        public int ProductId { get; set; }
-        public int WarehouseId { get; set; }
-        public int Quantity { get; set; }
-        public DateTime OccuredAt { get; set; }
-    }
+    public sealed record ProductShiped(
+        int WarehouseId,
+        int StockId,
+        int ProductId,
+        int Quantity
+    ):IWarehouseEvent;
 
-    public class ProductShippedEvent : IWarehouseEvent
-    {
-        public int ProductId { get; set; }
-        public int WarehouseId { get; set; }
-        public int Quantity { get; set; }
-        public string? ShipmentDestination { get; set; }
-        public DateTime OccuredAt { get; set; }
-    }
-
-    public class StockUpdatedEvent : IWarehouseEvent
-    {
-        public int StockId { get; set; }
-        public int WarehouseId { get; set; }
-        public int ProductId { get; set; }
-        public int PreviousQuantity { get; set; }
-        public int NewQuantity { get; set; }
-        public string? OperationType { get; set; }
-        public DateTime OccuredAt { get; set; }
-    }
+    public sealed record StockUpdated(
+        int StockId,
+        int ProductId,
+        int Quantity,
+        int Reserved,
+        int Available
+    ):IWarehouseEvent;
 }

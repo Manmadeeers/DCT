@@ -1,103 +1,101 @@
 using Microsoft.EntityFrameworkCore;
-using Npgsql.Internal;
-using Warehouse.Models.DTOs;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 using Warehouse.Models.Entities;
 
 namespace Warehouse.Data
 {
-    public class AppDbContext : DbContext
+    public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> options) : DbContext(options)
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
         public DbSet<Models.Entities.Warehouse> Warehouses => Set<Models.Entities.Warehouse>();
         public DbSet<Stock> Stocks => Set<Stock>();
+        public DbSet<StockItem> StockItems => Set<StockItem>();
         public DbSet<Product> Products => Set<Product>();
-        public DbSet<Supplier> Suppliers => Set<Supplier>();
-        public DbSet<Shippment> Shippments => Set<Shippment>();
-        public DbSet<ShippingItem> ShippingItems => Set<ShippingItem>();
-
+        public DbSet<Suplier> Supliers => Set<Suplier>();
+        public DbSet<Shipment> Shipments => Set<Shipment>();
+        public DbSet<ShipmentItem> ShipmentItems => Set<ShipmentItem>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Models.Entities.Warehouse>(e =>
-            {
-                e.ToTable("Warehouse");
-                e.HasKey(w => w.Id);
-                e.Property(w => w.Name).HasColumnName("Name").HasMaxLength(50).IsRequired();
-                e.Property(w => w.Country).HasColumnName("Country").HasMaxLength(50).IsRequired();
-                e.Property(w => w.City).HasColumnName("City").HasMaxLength(50).IsRequired();
+            base.OnModelCreating(modelBuilder);
 
-                e.HasIndex(w => w.Name).IsUnique();
-
-            });
-
-            modelBuilder.Entity<Stock>(e =>
-            {
-                e.ToTable("Stock");
-                e.HasKey(w => w.Id);
-                e.Property(w => w.Name).HasColumnName("Name").HasMaxLength(100).IsRequired();
-                e.Property(w => w.StockUnits).HasColumnName("StockUnits").IsRequired();
-                e.Property(w => w.ReservedUnits).HasColumnName("ReservedUnits").IsRequired();
-                e.Ignore(w => w.AvailableUnits);
-
-                e.HasOne(s => s.Warehouse).WithMany(w => w.Stocks).HasForeignKey(s => s.WarehouseId).OnDelete(DeleteBehavior.Cascade);
-            });
-
-            modelBuilder.Entity<Product>(e =>
-            {
-                e.ToTable("Product");
-                e.HasKey(w => w.Id);
-                e.Property(w => w.Name).HasColumnName("Name").HasMaxLength(100).IsRequired();
-                e.Property(w => w.Description).HasColumnName("Description").HasMaxLength(500);
-                e.Property(w => w.Price).HasColumnName("Price").IsRequired();
-                e.Property(w => w.Quantity).HasColumnName("Quantity").IsRequired();
-
-                e.HasIndex(w => w.Name).IsUnique();
-
-                e.HasOne(p => p.Stock).WithMany(s => s.Products).HasForeignKey(p => p.StockId).OnDelete(DeleteBehavior.Cascade);
-
-            });
-
-            modelBuilder.Entity<Supplier>(e =>
-            {
-                e.ToTable("Supplier");
-                e.HasKey(w => w.Id);
-                e.Property(w => w.Name).HasColumnName("Name").HasMaxLength(50).IsRequired();
-                e.Property(w => w.Email).HasColumnName("Email").HasMaxLength(100).IsRequired();
-                e.Property(w => w.Phone).HasColumnName("Phone").HasMaxLength(20).IsRequired();
-                e.Property(w => w.Address).HasColumnName("Address").HasMaxLength(100).IsRequired();
-
-                e.HasIndex(w => w.Name).IsUnique();
-                e.HasIndex(w => w.Email).IsUnique();
-                e.HasIndex(w => w.Phone).IsUnique();
-                e.HasIndex(w => w.Address).IsUnique();
-            });
-
-            modelBuilder.Entity<Shippment>(e =>
-            {
-                e.ToTable("Shipment");
-                e.HasKey(w => w.Id);
-                e.Property(w => w.ShipmentNumber).HasColumnName("ShipmentNumber").HasMaxLength(100).IsRequired();
-                e.Property(w => w.ExpectedDate).HasColumnName("ExpectedDate").IsRequired();
-                e.Property(w => w.ReceivedDate).HasColumnName("ReceivedDate");
-                e.Property(w => w.ShipmentStatus).HasColumnName("ShipmentStatus").HasMaxLength(10).IsRequired();
-
-                e.HasIndex(w => w.ShipmentNumber).IsUnique();
-
-                e.HasOne(s => s.Supplier).WithMany(sp => sp.Shippments).HasForeignKey(s => s.SupplierId).OnDelete(DeleteBehavior.Cascade);
-                e.HasOne(s => s.Warehouse).WithMany(wh => wh.Shippments).HasForeignKey(s => s.WarehouseId).OnDelete(DeleteBehavior.Cascade);
-            });
-
-            modelBuilder.Entity<ShippingItem>(e =>
-            {
-                e.ToTable("ShippingItem");
-                e.HasKey(w => w.Id);
-                e.Property(w => w.Quantity).IsRequired();
-                e.Property(w => w.UnitCost).IsRequired();
-
-                e.HasOne(s => s.Shippment).WithMany(sp => sp.ShippingItems).HasForeignKey(s => s.ShippmentId).OnDelete(DeleteBehavior.Cascade);
-                e.HasOne(s => s.Product).WithMany(p => p.ShippingItems).HasForeignKey(s => s.ProductId).OnDelete(DeleteBehavior.Cascade);
-            });
+            ConfigureWarehouse(modelBuilder);
+            ConfigureStock(modelBuilder);
+            ConfigureProduct(modelBuilder);
+            ConfigureSuplier(modelBuilder);
+            ConfigureStockItem(modelBuilder);
+            ConfigureShipment(modelBuilder);
+            ConfigureShipmentItem(modelBuilder);
         }
+
+        private static void ConfigureWarehouse(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<Models.Entities.Warehouse>();
+            entity.ToTable("warehouse");
+            entity.HasKey(w => w.Id);
+            entity.Property(w => w.Name).HasMaxLength(50).IsRequired();
+        }
+
+        private static void ConfigureStock(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<Stock>();
+            entity.ToTable("stock");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Name).HasMaxLength(50).IsRequired();
+        }
+
+        private static void ConfigureProduct(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<Product>();
+            entity.ToTable("product");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Sku).HasMaxLength(100).IsRequired();
+            entity.Property(p => p.Name).HasMaxLength(50).IsRequired();
+            entity.HasIndex(p => p.Sku).IsUnique();
+        }
+
+        private static void ConfigureSuplier(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<Suplier>();
+            entity.ToTable("suplier");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Name).HasMaxLength(50).IsRequired();
+            entity.HasIndex(s => s.Name).IsUnique();
+        }
+
+        private static void ConfigureStockItem(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<StockItem>();
+            entity.ToTable("stockItem");
+            entity.HasKey(s => new { s.StockId, s.ProductId });
+            entity.Ignore(s => s.Available);
+            entity.HasOne(s => s.Stock).WithMany(s => s.StockItems).HasForeignKey(s => s.StockId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(s => s.Product).WithMany(s => s.StockItems).HasForeignKey(s => s.ProductId).OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureShipment(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<Shipment>();
+            entity.ToTable("shipment");
+            entity.HasKey(s => s.Id);
+            entity.HasOne(s => s.Warehouse).WithMany(w => w.Shipments).HasForeignKey(s => s.WarehouseId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(s => s.Suplier).WithMany(s => s.Shipments).HasForeignKey(s => s.SuplierId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(s => s.Stock).WithMany(s => s.Shipments).HasForeignKey(s => s.StockId).OnDelete(DeleteBehavior.Cascade);
+        }
+
+        private static void ConfigureShipmentItem(ModelBuilder modelBuilder)
+        {
+            var entity = modelBuilder.Entity<ShipmentItem>();
+            entity.ToTable("shipmentItem");
+            entity.HasKey(s => new
+            {
+                s.ProducId,
+                s.ShipmentId
+            });
+
+            entity.HasOne(s => s.Shipment).WithMany(s => s.ShipmentItems).HasForeignKey(s => s.ShipmentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(s => s.Product).WithMany(s => s.ShipmentItems).HasForeignKey(s => s.ProducId).OnDelete(DeleteBehavior.Cascade);
+        }
+
     }
 }
