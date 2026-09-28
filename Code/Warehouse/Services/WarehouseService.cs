@@ -1,95 +1,83 @@
-using System.ComponentModel;
-using System.Drawing;
-using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Warehouse.Data;
-using Warehouse.Models.DTOs;
+using Warehouse.Events;
+using Warehouse.Exceptions;
+using Warehouse.Models.Contracts;
+using Warehouse.Models.Entities;
 
 namespace Warehouse.Services
 {
-    public class WarehouseService
+    public sealed class WarehouseService(WarehouseDbContext context, WarehouseEventLogger logger)
     {
-        private readonly AppDbContext _db;
-        public WarehouseService(AppDbContext db) => _db = db;
-        public async Task<IReadOnlyList<WarehouseDTO>> GetAllWarehousesAsync(CancellationToken ct = default)
+        public async Task<ProductResponse>AddProductAsync(AddProductRequest request, CancellationToken ct = default)
         {
-            return await _db.Warehouses.AsNoTracking().OrderBy(w => w.Name).Select(w => new WarehouseDTO
+            if (String.IsNullOrWhiteSpace(request.Sku) || String.IsNullOrWhiteSpace(request.Name))
             {
-                Id = w.Id,
-                Name = w.Name,
-                City = w.City,
-                Country = w.Country
-            }).ToListAsync(ct);
-        }
-
-        public async Task<WarehouseDTO?> GetWarehouseByIdAsync(int id, CancellationToken ct = default)
-        {
-            return await _db.Warehouses.AsNoTracking().Select(w => new WarehouseDTO
-            {
-                Id = w.Id,
-                Name = w.Name,
-                City = w.City,
-                Country = w.Country
-            }).FirstOrDefaultAsync(ct);
-        }
-
-        public async Task<WarehouseDTO> AddWarehouseAsync(CreateWarehouseRequest body, CancellationToken ct = default)
-        {
-            if (String.IsNullOrWhiteSpace(body.Name) || String.IsNullOrWhiteSpace(body.City) || String.IsNullOrWhiteSpace(body.Country))
-            {
-                throw new ArgumentException("Failed to create a warehouse with null or empty fields");
+                throw new IncorrectInputDataException("Stock keeping unit or product's name were null or empty");
             }
 
-            bool nameTaken = await _db.Warehouses.AnyAsync(w => w.Name == body.Name, ct);
-            if (nameTaken)
+            var sku = request.Sku.Trim();
+            var name = request.Name.Trim();
+
+            var  alreadyExists = await context.Products.AnyAsync(p=>p.Sku==sku,ct);
+            if (alreadyExists)
             {
-                throw new InvalidOperationException("Failed to create a warehouse. Name already exists");
+                throw new InvalidOperationException($"Product with SKU {sku} already exists");
             }
 
-            var warehouse = new Warehouse.Models.Entities.Warehouse
+            var product = new Product
             {
-                Name = body.Name,
-                City = body.City,
-                Country = body.Country
+                Sku=sku,
+                Name=name
             };
+            
+            await context.Products.AddAsync(product,ct);
 
-            await _db.Warehouses.AddAsync(warehouse, ct);
+            await context.SaveChangesAsync(ct);
 
-            await _db.SaveChangesAsync(ct);
-
-            return new WarehouseDTO
-            {
-                Id = warehouse.Id,
-                Name = warehouse.Name,
-                City = warehouse.City,
-                Country = warehouse.Country
-            };
+            return new ProductResponse(product.Id,product.Sku,product.Name);
         }
 
-        public async Task DeleteWarehouseAsync(int id, CancellationToken ct = default)
+        public async Task<ShipmentResponse>ReceiveShipmentAsync(ReceiveShipmentRequest request, CancellationToken ct = default)
         {
-            var warehouse = await _db.Warehouses.FirstOrDefaultAsync(w => w.Id == id, ct);
-            if (warehouse is null)
+            if (request.WarehouseId <= 0 || request.StockId <= 0 || request.SuplierId <= 0)
             {
-                throw new KeyNotFoundException("Failed to delete a warehouse. Not found");
+                throw new IncorrectInputDataException("Requested Ids were invalid");
             }
 
-            var referencedStocks = await _db.Stocks.AnyAsync(s => s.WarehouseId == id, ct);
-            if (referencedStocks)
+            if(request.Items is null || request.Items.Count == 0)
             {
-                throw new InvalidOperationException("Failed to delete a warehouse. Some stocks still reference it");
+                throw new IncorrectInputDataException("Attempted to create a shipment with null or empty items");
             }
 
-            var referencedShipments = await _db.Shippments.AnyAsync(s => s.WarehouseId == id, ct);
-            if (referencedShipments)
+            if (request.Items.Any(p => p.Id <= 0))
             {
-                throw new InvalidOperationException("Failed to delete a warehouse. There are still some ongoing shippments");
+                throw new IncorrectInputDataException("One or many items in a shipment had invalid ids");
             }
 
-            _db.Warehouses.Remove(warehouse);
-            await _db.SaveChangesAsync(ct);
+            var duplicateProduct = request.Items.GroupBy(p=>p.Id).FirstOrDefault(p=>p.Count()>1);
+            if(duplicateProduct is not null)
+            {
+                throw new IncorrectInputDataException("One or many products were duplicated in a shipment");
+            }
+
+            var warehouse = await context.Warehouses.FirstOrDefaultAsync(w=>w.Id==request.WarehouseId,ct)?? throw new ObjectMissingException("Warehouse with desired id was not found. Unable to create a shipment");
+            var stock = await context.Stocks.FirstOrDefaultAsync(s=>s.Id==request.StockId,ct)?? throw new ObjectMissingException("Stock with desired id was not found. Unable to create a shipment");
+            var suplier = await context.Supliers.FirstOrDefaultAsync(s=>s.Id==request.SuplierId)??throw new ObjectMissingException("Suplier with desired id was not found. Unable to create a shipment");
+
+            if (stock.WarehouseId != request.WarehouseId)
+            {
+                throw new IncorrectInputDataException("Requested stock's warehouse id and requested warehouse id does not match");
+            }
+
+            var productIds = request.Items.Select(p=>p.Id).ToList();
+            var existingProducts = await context.Products.Where(p=>productIds.Contains(p.Id)).Select(p=>p.Id).ToListAsync(ct);
+            var missingProducts = productIds.FirstOrDefault(id=>!existingProducts.Contains(id));
+            if(missingProducts != default)
+            {
+                throw new ObjectMissingException($"Product {missingProducts} was not found");
+            }
+
         }
-
-
     }
 }
