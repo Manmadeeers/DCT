@@ -19,11 +19,33 @@ public sealed class OperationsController(WarehouseService service) : ControllerB
         var name = operation.Replace("-", "").Replace("_", "").ToLowerInvariant();
         return name switch
         {
-            "addproduct" => Ok(await service.AddProductAsync(Read<AddProductRequest>(payload), cancellationToken)),
-            "receiveshipment" => Ok(await service.ReceiveShipmentAsync(Read<ReceiveShipmentRequest>(payload), cancellationToken)),
-            "reserveproduct" => Ok(await service.ReserveProductAsync(Read<ReserveProductRequest>(payload), cancellationToken)),
-            "shipproduct" => Ok(await service.ShipProductAsync(Read<ShipProductRequest>(payload), cancellationToken)),
-            _ => throw new IncorrectOperationException($"Operation '{operation}' is not supported.")
+            "addproduct" => Ok(
+                await service.AddProductAsync(
+                    Read<AddProductRequest>(payload),
+                    cancellationToken)),
+
+            "addsupplier" => Ok(
+                await service.AddSupplierAsync(
+                    Read<AddSupplierRequest>(payload),
+                    cancellationToken)),
+
+            "receiveshipment" => Ok(
+                await service.ReceiveShipmentAsync(
+                    Read<ReceiveShipmentRequest>(payload),
+                    cancellationToken)),
+
+            "reserveproduct" => Ok(
+                await service.ReserveProductAsync(
+                    Read<ReserveProductRequest>(payload),
+                    cancellationToken)),
+
+            "shipproduct" => Ok(
+                await service.ShipProductAsync(
+                    Read<ShipProductRequest>(payload),
+                    cancellationToken)),
+
+            _ => throw new IncorrectOperationException(
+                $"Operation '{operation}' is not supported.")
         };
     }
 

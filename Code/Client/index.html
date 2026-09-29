@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Warehouse Dashboard</title>
+
+  <link rel="stylesheet" href="./css/styles.css">
+  <script src="./js/app.js" defer></script>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">▦</span>
+      <span>WAREHOUSE <strong>OS</strong></span>
+    </div>
+
+    <span id="health" class="health">● Checking API</span>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">INVENTORY CONTROL / LIVE DASHBOARD</p>
+        <h1>Warehouse overview<span>.</span></h1>
+        <p>Manage products and follow stock from receiving through shipment.</p>
+      </div>
+
+      <button id="demo" class="button primary" type="button">
+        Legacy
+      </button>
+    </section>
+
+    <section class="card connection">
+      <div>
+        <h2>API connection</h2>
+        <p>Enter the address where the warehouse REST service is running.</p>
+      </div>
+
+      <form id="connection-form" class="connection-form">
+        <label for="api-url">API base URL</label>
+
+        <div class="input-action">
+          <input id="api-url" type="url" required value="http://localhost:5000" placeholder="http://localhost:5000">
+
+          <button class="button dark" type="submit">
+            Connect
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="summary" aria-label="Current warehouse summary">
+      <article class="card location">
+        <small>ACTIVE LOCATION</small>
+
+        <h2>Central Warehouse</h2>
+        <p>Main Sorting Zone</p>
+
+        <div class="ids">
+          <span>
+            WAREHOUSE
+            <b id="warehouse-id">—</b>
+          </span>
+
+          <span>
+            STOCK
+            <b id="stock-id">—</b>
+          </span>
+
+          <span>
+            SUPPLIER
+            <b id="supplier-id">—</b>
+          </span>
+        </div>
+      </article>
+
+      <article class="card metric">
+        <small>ON HAND</small>
+        <strong id="total">—</strong>
+        <span>Physical units</span>
+      </article>
+
+      <article class="card metric">
+        <small>AVAILABLE</small>
+        <strong id="available">—</strong>
+        <span>Ready to reserve</span>
+      </article>
+
+      <article class="card metric">
+        <small>RESERVED</small>
+        <strong id="reserved">—</strong>
+        <span>Awaiting shipment</span>
+      </article>
+    </section>
+
+    <section class="card operations">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">PRODUCT LIFECYCLE</p>
+          <h2>Inventory operations</h2>
+          <p>Follow a product from catalog creation to shipment.</p>
+        </div>
+      </div>
+
+      <div class="forms">
+        <form id="add-form" class="operation-form">
+          <div class="form-title">
+            <span>01</span>
+
+            <div>
+              <h3>Add product</h3>
+              <p>Register a new SKU.</p>
+            </div>
+          </div>
+
+          <label>
+            SKU
+
+            <input name="sku" required maxlength="100" placeholder="LAPTOP-001">
+          </label>
+
+          <label>
+            Product name
+
+            <input name="name" required maxlength="50" placeholder="Studio Laptop">
+          </label>
+
+          <button class="button light" type="submit">
+            Create product ↗
+          </button>
+        </form>
+
+        <form id="add-supplier-form" class="operation-form">
+          <div class="form-title">
+            <span>02</span>
+
+            <div>
+              <h3>Add supplier</h3>
+              <p>Register a shipment supplier.</p>
+            </div>
+          </div>
+
+          <label>
+            Supplier name
+
+            <input name="name" required maxlength="50" placeholder="Northwind Supplies">
+          </label>
+
+          <p class="form-help">
+            The new supplier will become available in the shipment dropdown.
+          </p>
+
+          <button class="button light" type="submit">
+            Create supplier ↗
+          </button>
+        </form>
+
+        <form id="receive-form" class="operation-form">
+          <div class="form-title">
+            <span>03</span>
+
+            <div>
+              <h3>Receive shipment</h3>
+              <p>Add incoming units.</p>
+            </div>
+          </div>
+
+          <label for="receive-supplier">
+            Supplier
+
+            <select id="receive-supplier" name="supplierId" required>
+              <option value="">Loading suppliers…</option>
+            </select>
+          </label>
+
+          <label for="receive-product">
+            Product
+
+            <select id="receive-product" name="productId" required>
+              <option value="">Loading products…</option>
+            </select>
+          </label>
+
+          <label>
+            Quantity
+
+            <input name="quantity" type="number" min="1" max="2147483647" step="1" required placeholder="Units">
+          </label>
+
+          <button class="button light" type="submit">
+            Receive stock ↗
+          </button>
+        </form>
+
+        <form id="reserve-form" class="operation-form">
+          <div class="form-title">
+            <span>04</span>
+
+            <div>
+              <h3>Reserve product</h3>
+              <p>Set available units aside.</p>
+            </div>
+          </div>
+
+          <label for="reserve-product">
+            Product
+
+            <select id="reserve-product" name="productId" required>
+              <option value="">Loading products…</option>
+            </select>
+          </label>
+
+          <label>
+            Quantity
+
+            <input name="quantity" type="number" min="1" max="2147483647" step="1" required placeholder="Units">
+          </label>
+
+          <button class="button light" type="submit">
+            Reserve units ↗
+          </button>
+        </form>
+
+        <form id="ship-form" class="operation-form">
+          <div class="form-title">
+            <span>05</span>
+
+            <div>
+              <h3>Ship product</h3>
+              <p>Dispatch reserved units.</p>
+            </div>
+          </div>
+
+          <label for="ship-product">
+            Product
+
+            <select id="ship-product" name="productId" required>
+              <option value="">Loading products…</option>
+            </select>
+          </label>
+
+          <label>
+            Quantity
+
+            <input name="quantity" type="number" min="1" max="2147483647" step="1" required placeholder="Units">
+          </label>
+
+          <button class="button light" type="submit">
+            Ship units ↗
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <div class="details">
+      <section class="card inventory">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">STOCK LEVELS</p>
+            <h2>Current inventory</h2>
+            <p id="stock-name">Connect to load stock.</p>
+          </div>
+
+          <button id="refresh" class="link-button" type="button">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>PRODUCT ID</th>
+                <th>PRODUCT</th>
+                <th>ON HAND</th>
+                <th>RESERVED</th>
+                <th>AVAILABLE</th>
+              </tr>
+            </thead>
+
+            <tbody id="stock-body">
+              <tr>
+                <td colspan="5" class="empty">No stock loaded.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card activity">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">THIS SESSION</p>
+            <h2>Recent activity</h2>
+          </div>
+
+          <button id="clear" class="link-button" type="button">
+            Clear
+          </button>
+        </div>
+
+        <ol id="activity-list">
+          <li class="empty">Operations will appear here.</li>
+        </ol>
+      </section>
+    </div>
+
+    <section class="card response" aria-live="polite">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">DEVELOPER VIEW</p>
+          <h2>API response</h2>
+        </div>
+
+        <span id="response-status">Waiting for a request</span>
+      </div>
+
+      <pre id="response-body">The most recent JSON response or error will appear here.</pre>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">
+  </div>
+</body>
+
+</html>

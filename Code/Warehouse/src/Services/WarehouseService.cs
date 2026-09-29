@@ -64,8 +64,10 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
             {
                 stockItem = new StockItem
                 {
-                    StockId = request.StockId, ProductId = item.ProductId,
-                    Quantity = 0, Reserved = 0
+                    StockId = request.StockId,
+                    ProductId = item.ProductId,
+                    Quantity = 0,
+                    Reserved = 0
                 };
                 db.StockItems.Add(stockItem);
                 current.Add(item.ProductId, stockItem);
@@ -156,6 +158,67 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
         return new BootstrapResponse(warehouse.Id, stock.Id, supplier.Id);
     }
 
+    public async Task<IReadOnlyCollection<ProductResponse>> GetProductsAsync(
+    CancellationToken ct)
+    {
+        return await db.Products
+            .AsNoTracking()
+            .OrderBy(product => product.Name)
+            .ThenBy(product => product.Id)
+            .Select(product => new ProductResponse(
+                product.Id,
+                product.Sku,
+                product.Name))
+            .ToListAsync(ct);
+    }
+
+    public async Task<SupplierResponse> AddSupplierAsync(
+    AddSupplierRequest request,
+    CancellationToken ct)
+    {
+        var name = request.Name?.Trim();
+
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 50)
+        {
+            throw new IncorrectInputDataException(
+                "Supplier name must contain 1 to 50 characters.");
+        }
+
+        if (await db.Supliers.AnyAsync(
+            supplier => supplier.Name == name,
+            ct))
+        {
+            throw new IncorrectInputDataException(
+                $"Supplier with name '{name}' already exists.");
+        }
+
+        var supplier = new Suplier
+        {
+            Name = name
+        };
+
+        db.Supliers.Add(supplier);
+
+        await db.SaveChangesAsync(ct);
+
+        return new SupplierResponse(
+            supplier.Id,
+            supplier.Name);
+    }
+
+    public async Task<IReadOnlyCollection<SupplierResponse>> GetSuppliersAsync(
+        CancellationToken ct)
+    {
+        return await db.Supliers
+            .AsNoTracking()
+            .OrderBy(supplier => supplier.Name)
+            .ThenBy(supplier => supplier.Id)
+            .Select(supplier => new SupplierResponse(
+                supplier.Id,
+                supplier.Name))
+            .ToListAsync(ct);
+    }
+
     private async Task ValidateLocationAsync(int warehouseId, int stockId, CancellationToken ct)
     {
         if (!await db.Warehouses.AnyAsync(x => x.Id == warehouseId, ct))
@@ -174,7 +237,7 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
 
     private async Task LockStockProductAsync(int stockId, int productId, CancellationToken ct)
     {
-        
+
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock({stockId}, {productId})", ct);
     }

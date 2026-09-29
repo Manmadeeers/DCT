@@ -14,3 +14,9 @@ public sealed record StockItemResponse(int ProductId, int Quantity, int Reserved
 public sealed record StockResponse(int Id, int? WarehouseId, string Name,
     IReadOnlyCollection<StockItemResponse> Items);
 public sealed record BootstrapResponse(int WarehouseId, int StockId, int SupplierId);
+
+public sealed record AddSupplierRequest(string? Name);
+
+public sealed record SupplierResponse(
+    int Id,
+    string Name);

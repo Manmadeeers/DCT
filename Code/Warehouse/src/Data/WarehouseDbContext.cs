@@ -80,7 +80,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         shipmentItem.HasKey(x => new { x.ShipmentId, x.ProductId });
         shipmentItem.Property(x => x.ShipmentId).HasColumnName("shipmentid");
         shipmentItem.Property(x => x.ProductId).HasColumnName("productid");
-        shipmentItem.Property(x => x.Quantity).HasColumnName("quanitty");
+        shipmentItem.Property(x => x.Quantity).HasColumnName("quantity");
         shipmentItem.HasOne(x => x.Shipment).WithMany(x => x.Items)
             .HasForeignKey(x => x.ShipmentId).OnDelete(DeleteBehavior.NoAction);
         shipmentItem.HasOne(x => x.Product).WithMany(x => x.ShipmentItems)
