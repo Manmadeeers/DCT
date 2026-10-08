@@ -8,7 +8,8 @@ namespace Warehouse.Api.Controllers;
 
 [ApiController]
 [Route("api/operations")]
-public sealed class OperationsController(WarehouseService service) : ControllerBase
+public sealed class OperationsController(
+    WarehouseService service, RaceReservationService reservations) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -35,7 +36,7 @@ public sealed class OperationsController(WarehouseService service) : ControllerB
                     cancellationToken)),
 
             "reserveproduct" => Ok(
-                await service.ReserveProductAsync(
+                await reservations.ReserveAsync(
                     Read<ReserveProductRequest>(payload),
                     cancellationToken)),
 
