@@ -31,9 +31,7 @@ public sealed class ClientTaskMiddleware(
 {
     public async Task InvokeAsync(HttpContext context, RequestExecution execution)
     {
-        var header = context.Request.Headers["X-Client-Id"].ToString();
-        execution.ClientId = int.TryParse(header, out var id) && id > 0
-            ? id.ToString() : context.Connection.Id;
+        execution.ClientId = context.Request.Headers["X-Client-Id"].ToString();
         execution.Operation = $"{context.Request.Method} {context.Request.Path}";
         execution.RequestId = context.TraceIdentifier;
 
@@ -45,8 +43,9 @@ public sealed class ClientTaskMiddleware(
             {
                 context.RequestAborted.ThrowIfCancellationRequested();
                 if (context.Request.Path.StartsWithSegments("/api/operations"))
-                    await Task.Delay(TimeSpan.FromSeconds(options.Value.RequestDelaySeconds),
-                        context.RequestAborted);
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(options.Value.RequestDelaySeconds), context.RequestAborted);
+                }
                 await next(context);
             }
             catch (Exception ex) when (context.RequestAborted.IsCancellationRequested &&
@@ -63,7 +62,8 @@ public sealed class ClientTaskMiddleware(
                     context.Response.StatusCode = 500;
                     await context.Response.WriteAsJsonAsync(new
                     {
-                        title = "Internal server error", status = 500,
+                        title = "Internal server error",
+                        status = 500,
                         traceId = context.TraceIdentifier
                     }, context.RequestAborted);
                 }

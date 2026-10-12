@@ -1,12 +1,13 @@
 using System.Text;
 
 if (args.Length < 2 || !int.TryParse(args[0], out var id) || id <= 0 ||
-    !Uri.TryCreate(args[1], UriKind.Absolute, out var server) ||
+!Uri.TryCreate(args[1], UriKind.Absolute, out var server) ||
     (server.Scheme != "http" && server.Scheme != "https"))
 {
     Console.WriteLine("Usage: dotnet run -- <client-id> <server-url>");
     return;
 }
+
 using var client = new HttpClient { BaseAddress = server, Timeout = TimeSpan.FromSeconds(60) };
 client.DefaultRequestHeaders.Add("X-Client-Id", id.ToString());
 using var stop = new CancellationTokenSource();

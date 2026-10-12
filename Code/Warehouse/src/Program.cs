@@ -6,17 +6,21 @@ using Warehouse.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
 builder.Services.AddScoped<RequestExecution>();
 builder.Services.AddScoped<RaceReservationService>();
+
 builder.Services.AddOptions<LabOptions>()
     .Bind(builder.Configuration.GetSection("Lab"))
     .Validate(x => x.RequestDelaySeconds is >= 0 and <= 60 &&
                    x.RaceDelaySeconds is >= 0 and <= 60,
         "Lab delays must be between 0 and 60 seconds.")
     .ValidateOnStart();
+
 builder.Services.AddDbContext<WarehouseDbContext>(options => options.UseNpgsql(
     builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.")));
+
 builder.Services.AddScoped<WarehouseService>();
 builder.Services.AddScoped<DomainEventLogger>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -33,12 +37,16 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
 app.UseMiddleware<ClientTaskMiddleware>();
+
 app.UseExceptionHandler();
 app.MapControllers();
 app.UseSwagger();
 app.UseSwaggerUI();
+
 app.UseCors("WarehouseClient");
+
 app.MapGet("/health", async (WarehouseDbContext db, CancellationToken ct) =>
 {
     try
@@ -52,6 +60,7 @@ app.MapGet("/health", async (WarehouseDbContext db, CancellationToken ct) =>
         return Results.Json(new { status = "Unhealthy", database = "Unavailable" }, statusCode: 503);
     }
 });
+
 app.Run();
 
 public partial class Program;

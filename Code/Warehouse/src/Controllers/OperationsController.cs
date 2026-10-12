@@ -35,11 +35,16 @@ public sealed class OperationsController(
                     Read<ReceiveShipmentRequest>(payload),
                     cancellationToken)),
 
-            "reserveproduct" => Ok(
+            "racereserve" => Ok(
                 await reservations.ReserveAsync(
                     Read<ReserveProductRequest>(payload),
                     cancellationToken)),
 
+            "reserveproduct" => Ok(
+                await service.ReserveProductAsync(
+                    Read<ReserveProductRequest>(payload),
+                     cancellationToken)
+            ),
             "shipproduct" => Ok(
                 await service.ShipProductAsync(
                     Read<ShipProductRequest>(payload),
