@@ -9,7 +9,7 @@ namespace Warehouse.Api.Controllers;
 [ApiController]
 [Route("api/operations")]
 public sealed class OperationsController(
-    WarehouseService service, RaceReservationService reservations) : ControllerBase
+    WarehouseService service, RaceReservationService reservations, SyncReservationService sync, SemaphoreReservationService semaphoreService) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -39,7 +39,14 @@ public sealed class OperationsController(
                 await reservations.ReserveAsync(
                     Read<ReserveProductRequest>(payload),
                     cancellationToken)),
-
+            "syncreserve" => Ok(
+                await sync.ReserveLocked(Read<ReserveProductRequest>(payload),
+                cancellationToken)
+            ),
+            "semaphorereserve" => Ok(
+                await semaphoreService.SemaphoreReserve(Read<ReserveProductRequest>(payload),
+                cancellationToken)
+            ),
             "reserveproduct" => Ok(
                 await service.ReserveProductAsync(
                     Read<ReserveProductRequest>(payload),

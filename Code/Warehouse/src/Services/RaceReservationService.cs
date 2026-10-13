@@ -47,6 +47,7 @@ public sealed class RaceReservationService(
             throw new ObjectMissingException($"Product '{request.ProductId}' was not found.");
         }
 
+        execution.Write(logger,"CRITICAL",$"Product={request.ProductId}");
         var item = await db.StockItems.SingleOrDefaultAsync(
             x => x.StockId == request.StockId && x.ProductId == request.ProductId, ct);
         if (item is null)

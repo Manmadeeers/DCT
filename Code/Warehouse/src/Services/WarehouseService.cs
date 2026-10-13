@@ -73,7 +73,7 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
 
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        
+
         foreach (var productId in ids.OrderBy(x => x))
             await LockStockProductAsync(request.StockId, productId, ct);
         var current = await db.StockItems
@@ -245,6 +245,12 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
                 supplier.Id,
                 supplier.Name))
             .ToListAsync(ct);
+    }
+
+    public Task<ServerTimeResponse> GetServerTimeAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(new ServerTimeResponse(DateTime.Now.ToString()));
     }
 
     private async Task ValidateLocationAsync(int warehouseId, int stockId, CancellationToken ct)

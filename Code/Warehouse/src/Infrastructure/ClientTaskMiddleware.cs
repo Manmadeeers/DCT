@@ -7,6 +7,7 @@ public sealed class LabOptions
 {
     public int RequestDelaySeconds { get; set; }
     public int RaceDelaySeconds { get; set; } = 10;
+    public int NetworkDelaySeconds { get; set; } = 0;
 }
 
 public sealed class RequestExecution
@@ -17,7 +18,7 @@ public sealed class RequestExecution
     public int TaskId { get; set; }
 
     public void Write(ILogger logger, string phase, string detail = "") =>
-        logger.LogInformation(
+        logger.LogCritical(
             "[{Timestamp:HH:mm:ss.fff}] Client {ClientId} -> {Phase} " +
             "Operation={Operation} Task={TaskId} Thread={ThreadId} Request={RequestId} {Detail}",
             DateTimeOffset.Now, ClientId, phase, Operation, TaskId,
@@ -42,6 +43,10 @@ public sealed class ClientTaskMiddleware(
             try
             {
                 context.RequestAborted.ThrowIfCancellationRequested();
+                if (options.Value.NetworkDelaySeconds != 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(options.Value.NetworkDelaySeconds), context.RequestAborted);
+                }
                 if (context.Request.Path.StartsWithSegments("/api/operations"))
                 {
                     await Task.Delay(TimeSpan.FromSeconds(options.Value.RequestDelaySeconds), context.RequestAborted);

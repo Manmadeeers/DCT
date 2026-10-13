@@ -1,4 +1,7 @@
-
+0. Run database container
+```bash
+docker compose up -d
+```
 
 1. Run server
 ```bash
@@ -32,7 +35,7 @@ POST /api/operations/AddProduct
 
 ```json
 {
-  "sku": "RACE-DEMO-03",
+  "sku": "RACE-DEMO-05",
   "name": "Race demo product"
 }
 ```
@@ -50,7 +53,7 @@ POST /api/operations/ReceiveShipment
   "supplierId": 1,
   "items": [
     {
-      "productId": 12,
+      "productId": 17,
       "quantity": 1
     }
   ]
@@ -75,7 +78,7 @@ POST /api/operations/RaceReserve
 {
   "warehouseId": 1,
   "stockId": 1,
-  "productId": 12,
+  "productId": 20,
   "quantity": 1
 }
 ```

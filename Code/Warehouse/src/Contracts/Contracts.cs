@@ -20,3 +20,6 @@ public sealed record AddSupplierRequest(string? Name);
 public sealed record SupplierResponse(
     int Id,
     string Name);
+
+
+public sealed record ServerTimeResponse(string serverTime);

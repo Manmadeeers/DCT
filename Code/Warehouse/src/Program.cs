@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Microsoft.EntityFrameworkCore;
 using Warehouse.Api.Data;
 using Warehouse.Api.Infrastructure;
@@ -9,11 +10,13 @@ builder.Services.AddControllers();
 
 builder.Services.AddScoped<RequestExecution>();
 builder.Services.AddScoped<RaceReservationService>();
+builder.Services.AddScoped<SyncReservationService>();
+builder.Services.AddScoped<SemaphoreReservationService>();
 
 builder.Services.AddOptions<LabOptions>()
     .Bind(builder.Configuration.GetSection("Lab"))
     .Validate(x => x.RequestDelaySeconds is >= 0 and <= 60 &&
-                   x.RaceDelaySeconds is >= 0 and <= 60,
+                   x.RaceDelaySeconds is >= 0 and <= 60 && x.NetworkDelaySeconds is >= 0 and <= 60,
         "Lab delays must be between 0 and 60 seconds.")
     .ValidateOnStart();
 
@@ -38,6 +41,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseMiddleware<ServerTimeMiddleware>();
 app.UseMiddleware<ClientTaskMiddleware>();
 
 app.UseExceptionHandler();
@@ -46,7 +50,6 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("WarehouseClient");
-
 app.MapGet("/health", async (WarehouseDbContext db, CancellationToken ct) =>
 {
     try
