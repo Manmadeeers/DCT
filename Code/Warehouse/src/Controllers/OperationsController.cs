@@ -52,6 +52,10 @@ public sealed class OperationsController(
                     Read<ReserveProductRequest>(payload),
                      cancellationToken)
             ),
+            "receiveshipmentfail" => Ok(
+                await service.ReceiveShipmentFailAsync(Read<ReceiveShipmentRequest>(payload),
+                cancellationToken)
+            ),
             "shipproduct" => Ok(
                 await service.ShipProductAsync(
                     Read<ShipProductRequest>(payload),

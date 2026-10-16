@@ -16,8 +16,9 @@ builder.Services.AddScoped<SemaphoreReservationService>();
 builder.Services.AddOptions<LabOptions>()
     .Bind(builder.Configuration.GetSection("Lab"))
     .Validate(x => x.RequestDelaySeconds is >= 0 and <= 60 &&
-                   x.RaceDelaySeconds is >= 0 and <= 60 && x.NetworkDelaySeconds is >= 0 and <= 60,
-        "Lab delays must be between 0 and 60 seconds.")
+                   x.RaceDelaySeconds is >= 0 and <= 60 && x.NetworkDelaySeconds is >= 0 and <= 60
+                   && x.TransactionFailStep is >= 0 and <= 2,
+        "Lab delays must be between 0 and 60 seconds. Transaction fail step must be between 0 and 2")
     .ValidateOnStart();
 
 builder.Services.AddDbContext<WarehouseDbContext>(options => options.UseNpgsql(

@@ -8,6 +8,7 @@ public sealed class LabOptions
     public int RequestDelaySeconds { get; set; }
     public int RaceDelaySeconds { get; set; } = 10;
     public int NetworkDelaySeconds { get; set; } = 0;
+    public int TransactionFailStep { get; set; } = 0;
 }
 
 public sealed class RequestExecution
@@ -47,7 +48,7 @@ public sealed class ClientTaskMiddleware(
                 {
                     await Task.Delay(TimeSpan.FromSeconds(options.Value.NetworkDelaySeconds), context.RequestAborted);
                 }
-                if (context.Request.Path.StartsWithSegments("/api/operations"))
+                if (context.Request.Path.StartsWithSegments("/api/operations") || context.Request.Path == "/api/operations/reserveproduct")
                 {
                     await Task.Delay(TimeSpan.FromSeconds(options.Value.RequestDelaySeconds), context.RequestAborted);
                 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Warehouse.Api.Contracts;
 using Warehouse.Api.Data;
 using Warehouse.Api.Domain;
@@ -7,8 +8,10 @@ using Warehouse.Api.Infrastructure;
 
 namespace Warehouse.Api.Services;
 
-public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger events)
+public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger events, RequestExecution execution, IOptions<LabOptions> options, ILogger<WarehouseService> logger)
 {
+
+    private static readonly object _reservationLock = new();
     public async Task<ProductResponse> AddProductAsync(AddProductRequest request, CancellationToken ct)
     {
         var sku = request.Sku?.Trim();
@@ -36,58 +39,108 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
         return new ProductResponse(product.Id, product.Sku, product.Name);
     }
 
-    public async Task<ShipmentResponse> ReceiveShipmentAsync(ReceiveShipmentRequest request, CancellationToken ct)
+    //INFO: this method intentionally does not use transactions to demonstrate databse behaviour when an operation is being interrupted midprocess
+    public async Task<ShipmentResponse> ReceiveShipmentFailAsync(ReceiveShipmentRequest request, CancellationToken ct)
     {
-        ValidateIds(request.WarehouseId, request.StockId, request.SupplierId);
+        ValidateIds(
+        request.WarehouseId,
+        request.StockId,
+        request.SupplierId);
 
-        if (request.Items is not { Count: > 0 } || request.Items.Any(x => x is null))
+
+        if (request.Items is not { Count: > 0 } ||
+            request.Items.Any(x => x is null))
         {
-            throw new IncorrectInputDataException("Shipment must contain at least one product.");
+            throw new IncorrectInputDataException(
+                "Shipment must contain at least one product.");
         }
 
-        if (request.Items.Any(x => x.ProductId <= 0 || x.Quantity <= 0))
+        if (request.Items.Any(
+            x => x.ProductId <= 0 || x.Quantity <= 0))
         {
-            throw new IncorrectInputDataException("Product IDs and quantities must be positive.");
+            throw new IncorrectInputDataException(
+                "Product IDs and quantities must be positive.");
         }
 
-        if (request.Items.Select(x => x.ProductId).Distinct().Count() != request.Items.Count)
+        if (request.Items.Select(x => x.ProductId)
+            .Distinct().Count() != request.Items.Count)
         {
-            throw new IncorrectInputDataException("A product occurs more than once in the shipment.");
+            throw new IncorrectInputDataException(
+                "A product occurs more than once in the shipment.");
         }
 
+        await ValidateLocationAsync(
+            request.WarehouseId,
+            request.StockId,
+            ct);
 
-        await ValidateLocationAsync(request.WarehouseId, request.StockId, ct);
-
-        if (!await db.Supliers.AnyAsync(x => x.Id == request.SupplierId, ct))
+        if (!await db.Supliers.AnyAsync(
+            x => x.Id == request.SupplierId,
+            ct))
         {
-            throw new ObjectMissingException($"Supplier '{request.SupplierId}' was not found.");
+            throw new ObjectMissingException(
+                $"Supplier '{request.SupplierId}' was not found.");
         }
 
-        var ids = request.Items.Select(x => x.ProductId).ToList();
-        var existing = await db.Products.Where(x => ids.Contains(x.Id)).Select(x => x.Id).ToListAsync(ct);
+        var ids = request.Items
+            .Select(x => x.ProductId)
+            .ToList();
+
+        var existing = await db.Products
+            .Where(x => ids.Contains(x.Id))
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+
         var missing = ids.FirstOrDefault(id => !existing.Contains(id));
+
         if (missing != 0)
         {
-            throw new ObjectMissingException($"Product '{missing}' was not found.");
+            throw new ObjectMissingException(
+                $"Product '{missing}' was not found.");
         }
 
-
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-
-        foreach (var productId in ids.OrderBy(x => x))
-            await LockStockProductAsync(request.StockId, productId, ct);
-        var current = await db.StockItems
-            .Where(x => x.StockId == request.StockId && ids.Contains(x.ProductId))
-            .ToDictionaryAsync(x => x.ProductId, ct);
         var shipment = new Shipment
         {
             WarehouseId = request.WarehouseId,
             StockId = request.StockId,
             SupplierId = request.SupplierId
         };
+
+        db.Shipments.Add(shipment);
+        await db.SaveChangesAsync(ct);
+
+        if (options.Value.TransactionFailStep == 1)
+        {
+
+            throw new InvalidOperationException(
+                $"Artificial failure after saving the shipment. An empty shipment was added with id={shipment.Id}");
+        }
+
         foreach (var item in request.Items)
         {
-            shipment.Items.Add(new ShipmentItem { ProductId = item.ProductId, Quantity = item.Quantity });
+            shipment.Items.Add(new ShipmentItem
+            {
+                ProductId = item.ProductId,
+                Quantity = item.Quantity
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        if (options.Value.TransactionFailStep == 2)
+        {
+            throw new InvalidOperationException(
+                $"Artificial failure after saving shipment items. Shipment with id={shipment.Id} added. ShipmentItems added");
+        }
+
+        var current = await db.StockItems
+            .Where(x =>
+                x.StockId == request.StockId &&
+                ids.Contains(x.ProductId))
+            .ToDictionaryAsync(x => x.ProductId, ct);
+
+        foreach (var item in request.Items)
+        {
             if (!current.TryGetValue(item.ProductId, out var stockItem))
             {
                 stockItem = new StockItem
@@ -97,26 +150,275 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
                     Quantity = 0,
                     Reserved = 0
                 };
+
                 db.StockItems.Add(stockItem);
                 current.Add(item.ProductId, stockItem);
             }
+
             if ((long)stockItem.Quantity + item.Quantity > int.MaxValue)
-                throw new IncorrectInputDataException("Receiving this quantity would overflow stock.");
+            {
+                throw new IncorrectInputDataException(
+                    "Receiving this quantity would overflow stock.");
+            }
+
             stockItem.Quantity += item.Quantity;
         }
-        db.Shipments.Add(shipment);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
 
-        events.Publish(new ShipmentReceived(shipment.Id, request.WarehouseId, request.StockId,
+        await db.SaveChangesAsync(ct);
+
+        events.Publish(new ShipmentReceived(
+            shipment.Id,
+            request.WarehouseId,
+            request.StockId,
             DateTimeOffset.UtcNow));
-        foreach (var item in request.Items) PublishStockUpdated(current[item.ProductId]);
-        return new ShipmentResponse(shipment.Id, request.WarehouseId, request.StockId,
-            request.SupplierId, request.Items.Select(x => new ShipmentItemResponse(x.ProductId, x.Quantity)).ToList());
+
+        foreach (var item in request.Items)
+        {
+            PublishStockUpdated(current[item.ProductId]);
+        }
+
+        return new ShipmentResponse(
+            shipment.Id,
+            request.WarehouseId,
+            request.StockId,
+            request.SupplierId,
+            request.Items.Select(x => new ShipmentItemResponse(
+                x.ProductId,
+                x.Quantity)).ToList());
     }
 
-    public Task<StockResponse> ReserveProductAsync(ReserveProductRequest request, CancellationToken ct) =>
-        ChangeStockAsync(request.WarehouseId, request.StockId, request.ProductId, request.Quantity, false, ct);
+    public async Task<ShipmentResponse> ReceiveShipmentAsync(ReceiveShipmentRequest request, CancellationToken ct)
+    {
+        ValidateIds(
+        request.WarehouseId,
+        request.StockId,
+        request.SupplierId);
+
+        if (request.Items is not { Count: > 0 } ||
+            request.Items.Any(x => x is null))
+        {
+            throw new IncorrectInputDataException(
+                "Shipment must contain at least one product.");
+        }
+
+        if (request.Items.Any(
+            x => x.ProductId <= 0 || x.Quantity <= 0))
+        {
+            throw new IncorrectInputDataException(
+                "Product IDs and quantities must be positive.");
+        }
+
+        if (request.Items.Select(x => x.ProductId)
+            .Distinct().Count() != request.Items.Count)
+        {
+            throw new IncorrectInputDataException(
+                "A product occurs more than once in the shipment.");
+        }
+
+        await ValidateLocationAsync(
+            request.WarehouseId,
+            request.StockId,
+            ct);
+
+        if (!await db.Supliers.AnyAsync(
+            x => x.Id == request.SupplierId,
+            ct))
+        {
+            throw new ObjectMissingException(
+                $"Supplier '{request.SupplierId}' was not found.");
+        }
+
+        var ids = request.Items
+            .Select(x => x.ProductId)
+            .ToList();
+
+        var existing = await db.Products
+            .Where(x => ids.Contains(x.Id))
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+
+        var missing = ids.FirstOrDefault(id => !existing.Contains(id));
+
+        if (missing != 0)
+        {
+            throw new ObjectMissingException(
+                $"Product '{missing}' was not found.");
+        }
+
+        var shipment = new Shipment
+        {
+            WarehouseId = request.WarehouseId,
+            StockId = request.StockId,
+            SupplierId = request.SupplierId
+        };
+
+        var current = new Dictionary<int, StockItem>();
+
+        await using var transaction =
+            await db.Database.BeginTransactionAsync(ct);
+
+        try
+        {
+            db.Shipments.Add(shipment);
+            await db.SaveChangesAsync(ct);
+
+            if (options.Value.TransactionFailStep == 1)
+            {
+                throw new InvalidOperationException(
+                    $"Artificial failure after saving the shipment. Attempted to create a shipment with id={shipment.Id}");
+            }
+
+            foreach (var item in request.Items)
+            {
+                shipment.Items.Add(new ShipmentItem
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity
+                });
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            if (options.Value.TransactionFailStep== 2)
+            {
+                throw new InvalidOperationException(
+                    $"Artificial failure after saving shipment items. Shipment created with id={shipment.Id}. Attempted to add ShipmentItems");
+            }
+
+            current = await db.StockItems
+                .Where(x =>
+                    x.StockId == request.StockId &&
+                    ids.Contains(x.ProductId))
+                .ToDictionaryAsync(x => x.ProductId, ct);
+
+            foreach (var item in request.Items)
+            {
+                if (!current.TryGetValue(item.ProductId, out var stockItem))
+                {
+                    stockItem = new StockItem
+                    {
+                        StockId = request.StockId,
+                        ProductId = item.ProductId,
+                        Quantity = 0,
+                        Reserved = 0
+                    };
+
+                    db.StockItems.Add(stockItem);
+                    current.Add(item.ProductId, stockItem);
+                }
+
+                if ((long)stockItem.Quantity + item.Quantity > int.MaxValue)
+                {
+                    throw new IncorrectInputDataException(
+                        "Receiving this quantity would overflow stock.");
+                }
+
+                stockItem.Quantity += item.Quantity;
+            }
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            execution.Write(logger,"COMMIT","");
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            execution.Write(logger,"ROLLBACK","");
+            throw;
+        }
+
+        events.Publish(new ShipmentReceived(
+            shipment.Id,
+            request.WarehouseId,
+            request.StockId,
+            DateTimeOffset.UtcNow));
+
+        foreach (var item in request.Items)
+        {
+            PublishStockUpdated(current[item.ProductId]);
+        }
+
+        return new ShipmentResponse(
+            shipment.Id,
+            request.WarehouseId,
+            request.StockId,
+            request.SupplierId,
+            request.Items.Select(x => new ShipmentItemResponse(
+                x.ProductId,
+                x.Quantity)).ToList());
+    }
+
+
+    //INFO: this method intentionally copies the already existing SyncReserve method to statisfy the 
+    //requirements of Lab4
+    public async Task<StockResponse> ReserveProductAsync(ReserveProductRequest request, CancellationToken ct)
+    {
+        execution.Write(logger, "START");
+        if (request.WarehouseId <= 0 || request.StockId <= 0 || request.ProductId <= 0 || request.Quantity <= 0)
+        {
+            throw new IncorrectInputDataException("IDs and quantity must be positive.");
+        }
+
+        if (!await db.Warehouses.AnyAsync(x => x.Id == request.WarehouseId, ct))
+        {
+            throw new ObjectMissingException($"Warehouse '{request.WarehouseId}' was not found.");
+        }
+
+        var stock = await db.Stocks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.StockId, ct);
+        if (stock is null)
+        {
+            throw new ObjectMissingException($"Stock '{request.StockId}' was not found.");
+        }
+
+        if (stock.WarehouseId != request.WarehouseId)
+        {
+            throw new IncorrectInputDataException("Stock does not belong to this warehouse.");
+        }
+
+        if (!await db.Products.AnyAsync(x => x.Id == request.ProductId, ct))
+        {
+            throw new ObjectMissingException($"Product '{request.ProductId}' was not found.");
+        }
+
+        StockItem item;
+
+        lock (_reservationLock)
+        {
+            execution.Write(logger, "LOCK", "");
+
+            item = db.StockItems.SingleOrDefault(x => x.StockId == request.StockId && x.ProductId == request.ProductId);
+            if (item is null)
+            {
+                throw new ObjectMissingException("Product is not present in this stock.");
+            }
+
+            if (item.Available < request.Quantity)
+            {
+                execution.Write(logger, "FAIL", $"Requested {request.Quantity}; available {item.Available}.");
+                throw new IncorrectInputDataException($"Requested {request.Quantity}; available {item.Available}.");
+            }
+
+            execution.Write(logger, "CHECK", $"Product={item.ProductId} Quantity={item.Quantity} " + $"Reserved={item.Reserved} Available={item.Available}");
+
+            ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(options.Value.RaceDelaySeconds));
+
+            ct.ThrowIfCancellationRequested();
+
+            item.Reserved += request.Quantity;
+            db.SaveChanges();
+
+            execution.Write(logger, "SUCCESS", $"Reserved={item.Reserved} Available={item.Available}");
+            execution.Write(logger, "UNLOCK", $"ProductId={request.ProductId}");
+
+        }
+        events.Publish(new ProductReserved(request.WarehouseId, request.StockId,
+            request.ProductId, request.Quantity, DateTimeOffset.UtcNow));
+
+        events.Publish(new StockUpdated(item.StockId, item.ProductId, item.Quantity,
+            item.Reserved, item.Available, DateTimeOffset.UtcNow));
+
+        return await GetStockAsync(request.StockId, ct);
+    }
 
     public Task<StockResponse> ShipProductAsync(ShipProductRequest request, CancellationToken ct) =>
         ChangeStockAsync(request.WarehouseId, request.StockId, request.ProductId, request.Quantity, true, ct);
@@ -165,7 +467,11 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
     {
         var stock = await db.Stocks.AsNoTracking().Include(x => x.Items)
             .SingleOrDefaultAsync(x => x.Id == stockId, ct);
-        if (stock is null) throw new ObjectMissingException($"Stock '{stockId}' was not found.");
+        if (stock is null)
+        {
+            throw new ObjectMissingException($"Stock '{stockId}' was not found.");
+        }
+
         return new StockResponse(stock.Id, stock.WarehouseId, stock.Name,
             stock.Items.OrderBy(x => x.ProductId)
                 .Select(x => new StockItemResponse(x.ProductId, x.Quantity, x.Reserved, x.Available)).ToList());
@@ -175,14 +481,23 @@ public sealed class WarehouseService(WarehouseDbContext db, DomainEventLogger ev
     {
         var warehouse = await db.Warehouses.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Name == "Central Warehouse", ct);
+
         var supplier = await db.Supliers.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Name == "Main Supplier", ct);
+
         if (warehouse is null || supplier is null)
+        {
             throw new ObjectMissingException("Run db/seed.sql to create the demo warehouse and supplier.");
+        }
+
         var stock = await db.Stocks.AsNoTracking().OrderBy(x => x.Id)
             .FirstOrDefaultAsync(x => x.WarehouseId == warehouse.Id && x.Name == "Main Sorting Zone", ct);
+
         if (stock is null)
+        {
             throw new ObjectMissingException("Run db/seed.sql to create the demo stock.");
+        }
+
         return new BootstrapResponse(warehouse.Id, stock.Id, supplier.Id);
     }
 

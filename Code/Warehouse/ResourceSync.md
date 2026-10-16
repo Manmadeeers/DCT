@@ -15,14 +15,14 @@ dotnet run --project Warehouse.csproj -- --urls http://localhost:5000 --Lab:Requ
 
 Create a new terminal, go to /Code and run:
 ```bash
-dotnet run --no-build --project ./Client/Client.csproj -- 1 http://localhost:5000
+dotnet run  --project ./Client/Client.csproj -- 1 http://localhost:5000
 ```
 
 3. Run the second client
 
 Split the previously created terminal(directory must be /Code) and run:
 ```bash
-dotnet run --no-build --project ./Client/Client.csproj -- 2 http://localhost:5000
+dotnet run  --project ./Client/Client.csproj -- 2 http://localhost:5000
 ```
 
 4.Check the warehouse and stock id we're working with
@@ -48,7 +48,7 @@ After this add the folowing body to a request:
 
 ```json
 {
-  "sku": "SYNC-DEMO-08",
+  "sku": "SYNC-DEMO-09",
   "name": "Race demo product"
 }
 ```
@@ -77,7 +77,7 @@ And add the folowing body to a request(Make sure that warehouse, stock and produ
   "supplierId": 1,
   "items": [
     {
-      "productId": 22,
+      "productId": 24,
       "quantity": 1
     }
   ]
@@ -121,7 +121,7 @@ Add the folowing body to a request(make sure that the product id is valid):
 {
   "warehouseId": 1,
   "stockId": 1,
-  "productId": 22,
+  "productId": 24,
   "quantity": 1
 }
 ```
@@ -138,7 +138,7 @@ Add the folowing body to a request(make sure that the product id is valid):
 {
   "warehouseId": 1,
   "stockId": 1,
-  "productId": 19,
+  "productId": 28,
   "quantity": 1
 }
 ```
