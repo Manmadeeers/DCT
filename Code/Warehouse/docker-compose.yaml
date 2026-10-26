@@ -1,0 +1,87 @@
+name: warehouse
+
+x-postgres: &postgres
+  image: warehouse-patroni:18.6
+  build:
+    context: ./database/ha
+    dockerfile: Dockerfile
+  depends_on:
+    etcd:
+      condition: service_healthy
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - pg_isready -U dct_user -d postgres
+    interval: 5s
+    timeout: 3s
+    retries: 24
+    start_period: 10s
+  stop_grace_period: 60s
+  restart: "no"
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.21
+    container_name: warehouse-etcd
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd=http://etcd:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=warehouse-patroni
+    volumes:
+      - etcd_data:/etcd-data
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/etcdctl
+        - --endpoints=http://127.0.0.1:2379
+        - endpoint
+        - health
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  postgres:
+    <<: *postgres
+    container_name: dct
+    environment:
+      PATRONI_NAME: dct
+      PATRONI_RESTAPI_CONNECT_ADDRESS: postgres:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: postgres:5432
+    ports:
+      - "5432:5432"
+      - "127.0.0.1:8008:8008"
+    volumes:
+      - patroni_primary_data:/var/lib/postgresql
+      - ./database/ha/patroni.yml:/etc/patroni.yml:ro
+
+  postgres-replica:
+    <<: *postgres
+    container_name: dct-replica
+    environment:
+      PATRONI_NAME: dct-replica
+      PATRONI_RESTAPI_CONNECT_ADDRESS: postgres-replica:8008
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: postgres-replica:5432
+    ports:
+      - "5433:5432"
+      - "127.0.0.1:8009:8008"
+    volumes:
+      - patroni_replica_data:/var/lib/postgresql
+      - ./database/ha/patroni.yml:/etc/patroni.yml:ro
+
+volumes:
+  etcd_data:
+    name: warehouse_patroni_etcd
+
+  patroni_primary_data:
+    name: warehouse_patroni_primary_pg18
+
+  patroni_replica_data:
+    name: warehouse_patroni_replica_pg18

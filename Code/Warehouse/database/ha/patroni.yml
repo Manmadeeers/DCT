@@ -1,0 +1,71 @@
+scope: warehouse
+namespace: /service/
+
+restapi:
+  listen: 0.0.0.0:8008
+
+etcd3:
+  hosts:
+    - etcd:2379
+
+bootstrap:
+  dcs:
+    ttl: 20
+    loop_wait: 5
+    retry_timeout: 5
+    primary_start_timeout: 0
+
+    check_timeline: true
+
+    synchronous_mode: true
+    synchronous_mode_strict: false
+    synchronous_node_count: 1
+
+    postgresql:
+      use_slots: true
+      use_pg_rewind: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_log_hints: "on"
+        synchronous_commit: remote_apply
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+postgresql:
+  listen: 0.0.0.0:5432
+  data_dir: /var/lib/postgresql/18/docker
+  bin_dir: /usr/lib/postgresql/18/bin
+  pgpass: /var/lib/postgresql/18/patroni.pgpass
+
+  authentication:
+    superuser:
+      username: dct_user
+      password: dct_password
+
+    replication:
+      username: warehouse_replicator
+      password: replication_password
+
+    rewind:
+      username: dct_user
+      password: dct_password
+
+  pg_hba:
+    - local all all trust
+    - host replication warehouse_replicator 0.0.0.0/0 scram-sha-256
+    - host all all 0.0.0.0/0 scram-sha-256
+
+  use_pg_rewind: true
+  remove_data_directory_on_rewind_failure: true
+  remove_data_directory_on_diverged_timelines: true
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  nosync: false
+  nostream: false

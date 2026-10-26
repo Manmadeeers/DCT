@@ -1,5 +1,5 @@
-using System.IO.Compression;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Warehouse.Api.Data;
 using Warehouse.Api.Infrastructure;
 using Warehouse.Api.Services;
@@ -15,55 +15,94 @@ builder.Services.AddScoped<SemaphoreReservationService>();
 
 builder.Services.AddOptions<LabOptions>()
     .Bind(builder.Configuration.GetSection("Lab"))
-    .Validate(x => x.RequestDelaySeconds is >= 0 and <= 60 &&
-                   x.RaceDelaySeconds is >= 0 and <= 60 && x.NetworkDelaySeconds is >= 0 and <= 60
-                   && x.TransactionFailStep is >= 0 and <= 2,
-        "Lab delays must be between 0 and 60 seconds. Transaction fail step must be between 0 and 2")
+    .Validate(
+        options =>
+            options.RequestDelaySeconds is >= 0 and <= 60 &&
+            options.RaceDelaySeconds is >= 0 and <= 60,
+        "Lab delays must be between 0 and 60 seconds.")
     .ValidateOnStart();
 
-builder.Services.AddDbContext<WarehouseDbContext>(options => options.UseNpgsql(
-    builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.")));
+builder.Services.AddSingleton<NpgsqlMultiHostDataSource>(services =>
+{
+    var configuration =
+        services.GetRequiredService<IConfiguration>();
+
+    var connectionString =
+        configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException(
+            "ConnectionStrings:DefaultConnection is required.");
+
+    return new NpgsqlDataSourceBuilder(connectionString)
+        .BuildMultiHost();
+});
+
+builder.Services.AddSingleton<NpgsqlDataSource>(services =>
+    services.GetRequiredService<NpgsqlMultiHostDataSource>()
+        .WithTargetSession(TargetSessionAttributes.ReadWrite));
+
+builder.Services.AddDbContext<WarehouseDbContext>(
+    (services, options) =>
+        options.UseNpgsql(
+            services.GetRequiredService<NpgsqlDataSource>()));
+
+builder.Services.AddSingleton<DatabaseAvailabilityMonitor>();
+
+builder.Services.AddHostedService<DatabaseAvailabilityMonitor>(
+    services =>
+        services.GetRequiredService<DatabaseAvailabilityMonitor>());
 
 builder.Services.AddScoped<WarehouseService>();
 builder.Services.AddScoped<DomainEventLogger>();
+
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("WarehouseClient", policy => policy
-        .WithOrigins("http://localhost:5500", "http://127.0.0.1:5500")
-        .AllowAnyHeader()
-        .AllowAnyMethod());
+    options.AddPolicy(
+        "WarehouseClient",
+        policy => policy
+            .WithOrigins(
+                "http://localhost:5500",
+                "http://127.0.0.1:5500")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
+
 app.UseMiddleware<ServerTimeMiddleware>();
 app.UseMiddleware<ClientTaskMiddleware>();
 
-app.UseExceptionHandler();
-app.MapControllers();
+app.UseCors("WarehouseClient");
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseCors("WarehouseClient");
-app.MapGet("/health", async (WarehouseDbContext db, CancellationToken ct) =>
-{
-    try
+app.MapControllers();
+
+app.MapGet(
+    "/health/databases",
+    (DatabaseAvailabilityMonitor monitor) =>
+        Results.Ok(monitor.Current));
+
+app.MapGet(
+    "/health",
+    (DatabaseAvailabilityMonitor monitor) =>
     {
-        return await db.Database.CanConnectAsync(ct)
-            ? Results.Ok(new { status = "Healthy", database = "Connected" })
-            : Results.Json(new { status = "Unhealthy", database = "Disconnected" }, statusCode: 503);
-    }
-    catch (Exception ex) when (ex is not OperationCanceledException)
-    {
-        return Results.Json(new { status = "Unhealthy", database = "Unavailable" }, statusCode: 503);
-    }
-});
+        var status = monitor.Current;
+
+        return Results.Json(
+            status,
+            statusCode: status.Ready
+                ? StatusCodes.Status200OK
+                : StatusCodes.Status503ServiceUnavailable);
+    });
 
 app.Run();
 
