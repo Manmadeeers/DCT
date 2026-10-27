@@ -13,7 +13,7 @@ docker --context desktop-linux compose -f docker-compose.yaml up -d
 #### In a new terminal run:
 
 ```bash
-dotnet run --project /src/Warehouse.csproj
+dotnet run --project src/Warehouse.csproj
 ```
 
 ## 3. Start the recovery watcher
@@ -61,7 +61,7 @@ POST /api/operations/AddProduct
 
 ```json
 {
-  "sku":"BEFORE-FAILOVER-00",
+  "sku":"BEFORE-FAILOVER-02",
   "name":"Before failover product"
 }
 ```
@@ -78,7 +78,7 @@ POST /api/operations/AddProduct
 
 ```json
 {
-  "sku":"AFTER-FAILOVER-00",
+  "sku":"AFTER-FAILOVER-04",
   "name":"After failover product"
 }
 ```
