@@ -1,8 +1,10 @@
+using System.Reflection.Emit;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Warehouse.Api.Data;
 using Warehouse.Api.Infrastructure;
 using Warehouse.Api.Services;
+using Warehouse.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,22 @@ builder.Services.AddScoped<RequestExecution>();
 builder.Services.AddScoped<RaceReservationService>();
 builder.Services.AddScoped<SyncReservationService>();
 builder.Services.AddScoped<SemaphoreReservationService>();
+builder.Services.AddScoped<TransactionLabService>();
+
+//INFO: in order to switch back to rabbitMQ uncomment this section and comment the section below
+// builder.Services.Configure<RabbitOptions>(
+//     builder.Configuration.GetSection("RabbitMQ"));
+
+builder.Services.Configure<BrokerOptions>(
+    builder.Configuration.GetSection("Broker"));
+
+
+//INFO: in order to switch back to rabbitMQ uncomment this section and comment the section below
+// builder.Services.AddHostedService<RabbitPublisherWorker>();
+
+builder.Services.AddHostedService<BrokerPublisherWorker>();
+
+builder.Services.AddSingleton<WarehouseEventBuffer>();
 
 builder.Services.AddOptions<LabOptions>()
     .Bind(builder.Configuration.GetSection("Lab"))

@@ -9,7 +9,7 @@ namespace Warehouse.Api.Controllers;
 [ApiController]
 [Route("api/operations")]
 public sealed class OperationsController(
-    WarehouseService service, RaceReservationService reservations, SyncReservationService sync, SemaphoreReservationService semaphoreService) : ControllerBase
+    WarehouseService service, RaceReservationService reservations, SyncReservationService sync, SemaphoreReservationService semaphoreService, TransactionLabService transactionService) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -53,7 +53,7 @@ public sealed class OperationsController(
                      cancellationToken)
             ),
             "receiveshipmentfail" => Ok(
-                await service.ReceiveShipmentFailAsync(Read<ReceiveShipmentRequest>(payload),
+                await transactionService.ReceiveShipmentFailAsync(Read<ReceiveShipmentRequest>(payload),
                 cancellationToken)
             ),
             "shipproduct" => Ok(

@@ -1,0 +1,194 @@
+name: warehouse-pubsub
+
+x-subscriber-environment: &subscriber-environment
+  DOTNET_ENVIRONMENT: Production
+
+  RabbitMQ__HostName: rabbitmq
+  RabbitMQ__Port: "5672"
+
+  RabbitMQ__Endpoints__0: "rabbitmq:5672"
+  RabbitMQ__Endpoints__1: "rabbitmq-2:5672"
+  RabbitMQ__Endpoints__2: "rabbitmq-3:5672"
+
+  RabbitMQ__UserName: warehouse
+  RabbitMQ__Password: warehouse_password
+  RabbitMQ__VirtualHost: warehouse-ha
+services:
+  rabbitmq:
+    image: rabbitmq:4.4-management
+    container_name: warehouse-rabbitmq
+    hostname: warehouse-rabbitmq
+    restart: unless-stopped
+
+    env_file:
+      - .env.rabbitmq
+
+    environment:
+      RABBITMQ_NODENAME: rabbit@warehouse-rabbitmq
+      RABBITMQ_DEFAULT_USER: warehouse
+      RABBITMQ_DEFAULT_PASS: warehouse_password
+
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+    volumes:
+      - warehouse_rabbitmq_data:/var/lib/rabbitmq
+      - ./messaging/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+    stop_grace_period: 60s
+
+  rabbitmq-2:
+    image: rabbitmq:4.4-management
+    container_name: warehouse-rabbitmq-2
+    hostname: warehouse-rabbitmq-2
+    restart: unless-stopped
+
+    env_file:
+      - .env.rabbitmq
+
+    environment:
+      RABBITMQ_NODENAME: rabbit@warehouse-rabbitmq-2
+      RABBITMQ_DEFAULT_USER: warehouse
+      RABBITMQ_DEFAULT_PASS: warehouse_password
+
+    ports:
+      - "127.0.0.1:5673:5672"
+      - "127.0.0.1:15673:15672"
+
+    volumes:
+      - warehouse_rabbitmq_2_data:/var/lib/rabbitmq
+      - ./messaging/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+    stop_grace_period: 60s
+
+  rabbitmq-3:
+    image: rabbitmq:4.4-management
+    container_name: warehouse-rabbitmq-3
+    hostname: warehouse-rabbitmq-3
+    restart: unless-stopped
+
+    env_file:
+      - .env.rabbitmq
+
+    environment:
+      RABBITMQ_NODENAME: rabbit@warehouse-rabbitmq-3
+      RABBITMQ_DEFAULT_USER: warehouse
+      RABBITMQ_DEFAULT_PASS: warehouse_password
+
+    ports:
+      - "127.0.0.1:5674:5672"
+      - "127.0.0.1:15674:15672"
+
+    volumes:
+      - warehouse_rabbitmq_3_data:/var/lib/rabbitmq
+      - ./messaging/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+    stop_grace_period: 60s
+  audit-subscriber:
+    container_name: warehouse-audit-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_OUTPUT: pubsub-publish/audit
+
+    command: ["Warehouse.AuditSubscriber.dll"]
+
+    environment:
+      <<: *subscriber-environment
+
+    stop_grace_period: 20s
+
+  notification-subscriber:
+    container_name: warehouse-notification-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_OUTPUT: pubsub-publish/notifications
+
+    command: ["Warehouse.NotificationSubscriber.dll"]
+
+    environment:
+      <<: *subscriber-environment
+      Notifications__LowStockThreshold: "5"
+
+    stop_grace_period: 20s
+
+  catalog-subscriber:
+    container_name: warehouse-catalog-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_OUTPUT: pubsub-publish/catalog
+
+    command: ["Warehouse.CatalogSubscriber.dll"]
+
+    environment:
+      <<: *subscriber-environment
+
+    stop_grace_period: 20s
+
+  eventanalytics-subscriber:
+    container_name: warehouse-eventanalytics-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_OUTPUT: pubsub-publish/eventanalytics
+
+    command: ["Warehouse.EventAnalyticsSubscriber.dll"]
+
+    environment:
+      <<: *subscriber-environment
+      Analytics__StateFile: /data/statistics.json
+
+    volumes:
+      - warehouse_analytics_data:/data
+
+    stop_grace_period: 20s
+
+volumes:
+  warehouse_rabbitmq_data:
+    external: true
+    name: warehouse-pubsub_warehouse_rabbitmq_data
+
+  warehouse_rabbitmq_2_data:
+    name: warehouse_rabbitmq_2_data
+
+  warehouse_rabbitmq_3_data:
+    name: warehouse_rabbitmq_3_data
+
+  warehouse_analytics_data:
+    name: warehouse_analytics_data

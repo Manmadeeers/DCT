@@ -2,12 +2,15 @@ name: warehouse
 
 x-postgres: &postgres
   image: warehouse-patroni:18.6
+
   build:
     context: ./database/ha
     dockerfile: Dockerfile
+
   depends_on:
     etcd:
       condition: service_healthy
+
   healthcheck:
     test:
       - CMD-SHELL
@@ -16,13 +19,20 @@ x-postgres: &postgres
     timeout: 3s
     retries: 24
     start_period: 10s
+
   stop_grace_period: 60s
   restart: "no"
+
+x-subscriber-environment: &subscriber-environment
+  DOTNET_ENVIRONMENT: Production
+  Broker__Endpoints__0: http://message-broker:8080/
+  Broker__Endpoints__1: http://message-broker-2:8080/
 
 services:
   etcd:
     image: quay.io/coreos/etcd:v3.5.21
     container_name: warehouse-etcd
+
     command:
       - /usr/local/bin/etcd
       - --name=etcd
@@ -34,8 +44,10 @@ services:
       - --initial-cluster=etcd=http://etcd:2380
       - --initial-cluster-state=new
       - --initial-cluster-token=warehouse-patroni
+
     volumes:
       - etcd_data:/etcd-data
+
     healthcheck:
       test:
         - CMD
@@ -46,18 +58,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+
     restart: unless-stopped
 
   postgres:
     <<: *postgres
     container_name: dct
+
     environment:
       PATRONI_NAME: dct
       PATRONI_RESTAPI_CONNECT_ADDRESS: postgres:8008
       PATRONI_POSTGRESQL_CONNECT_ADDRESS: postgres:5432
+
     ports:
       - "5432:5432"
       - "127.0.0.1:8008:8008"
+
     volumes:
       - patroni_primary_data:/var/lib/postgresql
       - ./database/ha/patroni.yml:/etc/patroni.yml:ro
@@ -65,16 +81,170 @@ services:
   postgres-replica:
     <<: *postgres
     container_name: dct-replica
+
     environment:
       PATRONI_NAME: dct-replica
       PATRONI_RESTAPI_CONNECT_ADDRESS: postgres-replica:8008
       PATRONI_POSTGRESQL_CONNECT_ADDRESS: postgres-replica:5432
+
     ports:
       - "5433:5432"
       - "127.0.0.1:8009:8008"
+
     volumes:
       - patroni_replica_data:/var/lib/postgresql
       - ./database/ha/patroni.yml:/etc/patroni.yml:ro
+
+  message-broker:
+    container_name: warehouse-message-broker
+    image: warehouse-message-broker:latest
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.broker
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__Broker: >-
+        Host=postgres:5432,postgres-replica:5432;Database=postgres;Username=dct_user;Password=dct_password;Target Session Attributes=read-write;Timeout=3;Command Timeout=15;Host Recheck Seconds=2
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+
+    ports:
+      - "127.0.0.1:5080:8080"
+
+    stop_grace_period: 20s
+
+  message-broker-2:
+    container_name: warehouse-message-broker-2
+    image: warehouse-message-broker:latest
+    restart: unless-stopped
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__Broker: >-
+        Host=postgres:5432,postgres-replica:5432;Database=postgres;Username=dct_user;Password=dct_password;Target Session Attributes=read-write;Timeout=3;Command Timeout=15;Host Recheck Seconds=2
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+
+    ports:
+      - "127.0.0.1:5081:8080"
+
+    stop_grace_period: 20s
+
+  audit-subscriber:
+    container_name: warehouse-audit-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_PROJECT: services/Warehouse.AuditSubscriber/Warehouse.AuditSubscriber.csproj
+
+    command:
+      - Warehouse.AuditSubscriber.dll
+
+    environment:
+      <<: *subscriber-environment
+
+    depends_on:
+      message-broker:
+        condition: service_started
+      message-broker-2:
+        condition: service_started
+
+    stop_grace_period: 20s
+
+  notification-subscriber:
+    container_name: warehouse-notification-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_PROJECT: services/Warehouse.NotificationSubscriber/Warehouse.NotificationSubscriber.csproj
+
+    command:
+      - Warehouse.NotificationSubscriber.dll
+
+    environment:
+      <<: *subscriber-environment
+      Notifications__LowStockThreshold: "5"
+
+    depends_on:
+      message-broker:
+        condition: service_started
+      message-broker-2:
+        condition: service_started
+
+    stop_grace_period: 20s
+
+  catalog-subscriber:
+    container_name: warehouse-catalog-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_PROJECT: services/Warehouse.CatalogSubscriber/Warehouse.CatalogSubscriber.csproj
+
+    command:
+      - Warehouse.CatalogSubscriber.dll
+
+    environment:
+      <<: *subscriber-environment
+
+    depends_on:
+      message-broker:
+        condition: service_started
+      message-broker-2:
+        condition: service_started
+
+    stop_grace_period: 20s
+
+  eventanalytics-subscriber:
+    container_name: warehouse-eventanalytics-subscriber
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.pubsub
+      args:
+        SUBSCRIBER_PROJECT: services/Warehouse.EventAnalyticsSubscriber/Warehouse.EventAnalyticsSubscriber.csproj
+
+    command:
+      - Warehouse.EventAnalyticsSubscriber.dll
+
+    environment:
+      <<: *subscriber-environment
+      Analytics__StateFile: /data/statistics.json
+
+    volumes:
+      - warehouse_analytics_data:/data
+
+    depends_on:
+      message-broker:
+        condition: service_started
+      message-broker-2:
+        condition: service_started
+
+    stop_grace_period: 20s
 
 volumes:
   etcd_data:
@@ -85,3 +255,6 @@ volumes:
 
   patroni_replica_data:
     name: warehouse_patroni_replica_pg18
+
+  warehouse_analytics_data:
+    name: warehouse_analytics_data
