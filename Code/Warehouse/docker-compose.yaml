@@ -28,6 +28,22 @@ x-subscriber-environment: &subscriber-environment
   Broker__Endpoints__0: http://message-broker:8080/
   Broker__Endpoints__1: http://message-broker-2:8080/
 
+x-consensus-environment: &consensus-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+  Cluster__HeartbeatIntervalMilliseconds: "1000"
+  Cluster__HeartbeatTimeoutMilliseconds: "750"
+  Cluster__Nodes__0__Id: "1"
+  Cluster__Nodes__0__BaseUrl: http://consensus-node-1:8080
+  Cluster__Nodes__1__Id: "2"
+  Cluster__Nodes__1__BaseUrl: http://consensus-node-2:8080
+  Cluster__Nodes__2__Id: "3"
+  Cluster__Nodes__2__BaseUrl: http://consensus-node-3:8080
+  Cluster__Nodes__3__Id: "4"
+  Cluster__Nodes__3__BaseUrl: http://consensus-node-4:8080
+  Cluster__Nodes__4__Id: "5"
+  Cluster__Nodes__4__BaseUrl: http://consensus-node-5:8080
+
 services:
   etcd:
     image: quay.io/coreos/etcd:v3.5.21
@@ -244,6 +260,123 @@ services:
       message-broker-2:
         condition: service_started
 
+    stop_grace_period: 20s
+
+  consensus-node-1:
+    container_name: warehouse-consensus-node-1
+    image: warehouse-consensus-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.consensus-node
+    environment:
+      <<: *consensus-environment
+      Cluster__NodeId: "1"
+    ports:
+      - "127.0.0.1:5101:8080"
+    restart: unless-stopped
+
+  consensus-node-2:
+    container_name: warehouse-consensus-node-2
+    image: warehouse-consensus-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.consensus-node
+    environment:
+      <<: *consensus-environment
+      Cluster__NodeId: "2"
+    ports:
+      - "127.0.0.1:5102:8080"
+    restart: unless-stopped
+
+  consensus-node-3:
+    container_name: warehouse-consensus-node-3
+    image: warehouse-consensus-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.consensus-node
+    environment:
+      <<: *consensus-environment
+      Cluster__NodeId: "3"
+    ports:
+      - "127.0.0.1:5103:8080"
+    restart: unless-stopped
+
+  consensus-node-4:
+    container_name: warehouse-consensus-node-4
+    image: warehouse-consensus-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.consensus-node
+    environment:
+      <<: *consensus-environment
+      Cluster__NodeId: "4"
+    ports:
+      - "127.0.0.1:5104:8080"
+    restart: unless-stopped
+
+  consensus-node-5:
+    container_name: warehouse-consensus-node-5
+    image: warehouse-consensus-node:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.consensus-node
+    environment:
+      <<: *consensus-environment
+      Cluster__NodeId: "5"
+    ports:
+      - "127.0.0.1:5105:8080"
+    restart: unless-stopped
+
+  api:
+    container_name: warehouse-api
+    image: warehouse-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: >-
+        Host=postgres:5432,postgres-replica:5432;Database=warehouse_db;Username=dct_user;Password=dct_password;Timeout=3;Command Timeout=30;Host Recheck Seconds=2;Load Balance Hosts=false
+      ConnectionStrings__PrimaryNode: >-
+        Host=postgres;Port=5432;Database=warehouse_db;Username=dct_user;Password=dct_password
+      ConnectionStrings__ReplicaNode: >-
+        Host=postgres-replica;Port=5432;Database=warehouse_db;Username=dct_user;Password=dct_password
+      Broker__BaseUrl: http://message-broker:8080/
+      Broker__Endpoints__0: http://message-broker:8080/
+      Broker__Endpoints__1: http://message-broker-2:8080/
+      Consensus__Nodes__0__Id: "1"
+      Consensus__Nodes__0__BaseUrl: http://consensus-node-1:8080
+      Consensus__Nodes__1__Id: "2"
+      Consensus__Nodes__1__BaseUrl: http://consensus-node-2:8080
+      Consensus__Nodes__2__Id: "3"
+      Consensus__Nodes__2__BaseUrl: http://consensus-node-3:8080
+      Consensus__Nodes__3__Id: "4"
+      Consensus__Nodes__3__BaseUrl: http://consensus-node-4:8080
+      Consensus__Nodes__4__Id: "5"
+      Consensus__Nodes__4__BaseUrl: http://consensus-node-5:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+      message-broker:
+        condition: service_started
+      message-broker-2:
+        condition: service_started
+      consensus-node-1:
+        condition: service_started
+      consensus-node-2:
+        condition: service_started
+      consensus-node-3:
+        condition: service_started
+      consensus-node-4:
+        condition: service_started
+      consensus-node-5:
+        condition: service_started
+    ports:
+      - "5000:8080"
+    restart: unless-stopped
     stop_grace_period: 20s
 
 volumes:

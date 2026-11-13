@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Warehouse.AuditSubscriber",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Warehouse.NotificationSubscriber", "services\Warehouse.NotificationSubscriber\Warehouse.NotificationSubscriber.csproj", "{CAB8AFFB-36AF-45D2-87A0-36F5EADFFD9A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Warehouse.ConsensusNode", "services\Warehouse.ConsensusNode\Warehouse.ConsensusNode.csproj", "{1630BCA1-525B-4BCE-B92B-8E3182EBD589}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -133,6 +135,18 @@ Global
 		{CAB8AFFB-36AF-45D2-87A0-36F5EADFFD9A}.Release|x64.Build.0 = Release|Any CPU
 		{CAB8AFFB-36AF-45D2-87A0-36F5EADFFD9A}.Release|x86.ActiveCfg = Release|Any CPU
 		{CAB8AFFB-36AF-45D2-87A0-36F5EADFFD9A}.Release|x86.Build.0 = Release|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Debug|x64.Build.0 = Debug|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Debug|x86.Build.0 = Debug|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Release|x64.ActiveCfg = Release|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Release|x64.Build.0 = Release|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Release|x86.ActiveCfg = Release|Any CPU
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -146,5 +160,6 @@ Global
 		{F073B1C6-C916-4566-BC2D-854D8941CEC3} = {5854FF58-B8C5-05C6-5BF2-ACE42193F22B}
 		{89DC5BAD-1BB9-4B7B-B7AE-26A8662CE13E} = {5854FF58-B8C5-05C6-5BF2-ACE42193F22B}
 		{CAB8AFFB-36AF-45D2-87A0-36F5EADFFD9A} = {5854FF58-B8C5-05C6-5BF2-ACE42193F22B}
+		{1630BCA1-525B-4BCE-B92B-8E3182EBD589} = {5854FF58-B8C5-05C6-5BF2-ACE42193F22B}
 	EndGlobalSection
 EndGlobal

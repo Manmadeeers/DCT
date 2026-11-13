@@ -1,6 +1,7 @@
 using System.Reflection.Emit;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Warehouse.Api.Consensus;
 using Warehouse.Api.Data;
 using Warehouse.Api.Infrastructure;
 using Warehouse.Api.Services;
@@ -9,6 +10,18 @@ using Warehouse.Messaging;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
+builder.Services.AddOptions<ConsensusOptions>()
+    .Bind(builder.Configuration.GetSection("Consensus"))
+    .Validate(
+        options => options.Nodes.Length > 0 &&
+                   options.Nodes.Select(node => node.Id).Distinct().Count() == options.Nodes.Length &&
+                   options.Nodes.All(node => node.Id > 0 && Uri.IsWellFormedUriString(node.BaseUrl, UriKind.Absolute)),
+        "Consensus nodes must have unique positive IDs and absolute URLs.")
+    .ValidateOnStart();
+builder.Services.AddHttpClient("consensus-cluster", client =>
+    client.Timeout = TimeSpan.FromSeconds(3));
+builder.Services.AddSingleton<ConsensusClusterClient>();
 
 builder.Services.AddScoped<RequestExecution>();
 builder.Services.AddScoped<RaceReservationService>();

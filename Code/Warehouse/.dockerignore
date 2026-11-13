@@ -1,4 +1,6 @@
 **/bin/
 **/obj/
+.idea/
 .git/
 .env.rabbitmq
+pubsub-publish/
