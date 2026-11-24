@@ -3,3 +3,5 @@
 [Oo]bj/
 pubsub-publish/
 .env.rabbitmq
+.env*
+docker-publish/
